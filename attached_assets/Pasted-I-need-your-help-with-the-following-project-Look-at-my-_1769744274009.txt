@@ -1,0 +1,37 @@
+I need your help with the following project. Look at my requirements, draw on your vast knowledge of coding and come up with the best strategy you can to implement this application in a way that helps me get this running quickly but that allows me to adapt this project in the future.
+
+## Primary Goal
+I want to create a security software that features 3 "heads" like the mythological guardian of the underworld cerberus. "Head 1" should be AI deepfake detection, "head 2" should be Anti AI surveillance monitoring, and "head 3" should be adaptive threat containment
+
+## Type of Application
+Web App, Phone App
+
+## Accessibility Considerations
+Ensure the application adheres to accessibility best practices (WCAG AA level recommended).
+- Use semantic HTML elements correctly (e.g., <nav>, <main>, <button>, <article>).
+- Implement proper ARIA attributes where necessary to enhance screen reader compatibility, especially for dynamic content and custom components.
+- Ensure all interactive elements are fully navigable and operable using only the keyboard.
+- Maintain sufficient color contrast between text and background elements.
+- Provide text alternatives (alt text) for all meaningful images.
+- Test the application using screen readers (e.g., VoiceOver, NVDA) and keyboard navigation.
+
+## Visual Reference
+If you are able to, take a look at this website to get ideas for the visual theme desired:
+mcafee software
+
+## Monetization Plan
+Develop a subscription-based service. Set up tiered subscription plans (e.g., Basic, Pro, Enterprise) with different features/limits. Implement recurring billing (e.g., using Stripe Billing), user account management for subscriptions, and access control based on plan.
+
+## Data Storage Requirements
+The application will need to store data including but not limited to the following types of data:
+User ID, Subscription Plan, Billing Cycle, Payment Status
+
+## Backend/Storage Strategy
+Given the requirements for user registration and/or monetization, strongly consider using **Supabase**. It's an open-source Backend-as-a-Service that simplifies database management, authentication, real-time subscriptions, and storage, which will be beneficial for these features.
+
+## Development Environment
+using React/Next.js with various backend options
+
+## Visual Theme
+Minimalist
+
