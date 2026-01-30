@@ -2,6 +2,16 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import {
+  securityHeaders,
+  apiRateLimiter,
+  hppMiddleware,
+  noCacheHeaders,
+  secureErrorHandler,
+  addRequestId,
+  validateRedirect,
+  csrfProtection,
+} from "./security";
 
 const app = express();
 const httpServer = createServer(app);
@@ -12,15 +22,43 @@ declare module "http" {
   }
 }
 
+// ============ SECURITY MIDDLEWARE (Applied First) ============
+
+// Add request ID for tracing
+app.use(addRequestId);
+
+// Security headers (XSS, Clickjacking, Content-Type Sniffing, etc.)
+app.use(securityHeaders);
+
+// Rate limiting for all API requests
+app.use("/api", apiRateLimiter);
+
+// HTTP Parameter Pollution prevention
+app.use(hppMiddleware);
+
+// Validate redirect parameters
+app.use(validateRedirect);
+
+// No-cache headers for API responses
+app.use(noCacheHeaders);
+
+// CSRF protection (origin checking for state-changing requests)
+app.use("/api", csrfProtection);
+
+// ============ BODY PARSING ============
+
 app.use(
   express.json({
+    limit: "10kb", // Limit body size to prevent DoS
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
   }),
 );
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: "10kb" }));
+
+// ============ LOGGING ============
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -49,7 +87,12 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        // Don't log sensitive data
+        const safeResponse = { ...capturedJsonResponse };
+        delete safeResponse.password;
+        delete safeResponse.token;
+        delete safeResponse.secret;
+        logLine += ` :: ${JSON.stringify(safeResponse)}`;
       }
 
       log(logLine);
@@ -59,21 +102,13 @@ app.use((req, res, next) => {
   next();
 });
 
+// ============ ROUTES ============
+
 (async () => {
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    console.error("Internal Server Error:", err);
-
-    if (res.headersSent) {
-      return next(err);
-    }
-
-    return res.status(status).json({ message });
-  });
+  // Secure error handler (prevents information disclosure)
+  app.use(secureErrorHandler);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

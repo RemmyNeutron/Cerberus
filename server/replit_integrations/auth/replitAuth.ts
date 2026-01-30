@@ -32,10 +32,13 @@ export function getSession() {
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    name: "__Host-session", // Use __Host- prefix for additional security
     cookie: {
-      httpOnly: true,
-      secure: true,
+      httpOnly: true,  // Prevents JavaScript access (XSS protection)
+      secure: true,    // Only sent over HTTPS
       maxAge: sessionTtl,
+      sameSite: "lax", // CSRF protection while allowing navigation
+      path: "/",       // Cookie accessible from all paths
     },
   });
 }

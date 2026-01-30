@@ -13,7 +13,7 @@ import {
   type InsertProtectionStatus,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export interface IStorage {
   // Subscription Plans
@@ -26,10 +26,12 @@ export interface IStorage {
   createUserSubscription(subscription: InsertUserSubscription): Promise<UserSubscription>;
   updateUserSubscription(id: string, data: Partial<InsertUserSubscription>): Promise<UserSubscription | undefined>;
   
-  // Threat Logs
+  // Threat Logs - with ownership verification
   getThreatLogs(userId: string): Promise<ThreatLog[]>;
+  getThreatLogById(id: string): Promise<ThreatLog | undefined>;
+  getThreatLogByIdAndUser(id: string, userId: string): Promise<ThreatLog | undefined>;
   createThreatLog(log: InsertThreatLog): Promise<ThreatLog>;
-  updateThreatLogStatus(id: string, status: string): Promise<ThreatLog | undefined>;
+  updateThreatLogStatus(id: string, userId: string, status: string): Promise<ThreatLog | undefined>;
   
   // Protection Status
   getProtectionStatus(userId: string): Promise<ProtectionStatus | undefined>;
@@ -69,9 +71,22 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  // Threat Logs
+  // Threat Logs - with ownership verification to prevent IDOR
   async getThreatLogs(userId: string): Promise<ThreatLog[]> {
     return db.select().from(threatLogs).where(eq(threatLogs.userId, userId)).orderBy(desc(threatLogs.detectedAt));
+  }
+
+  async getThreatLogById(id: string): Promise<ThreatLog | undefined> {
+    const [log] = await db.select().from(threatLogs).where(eq(threatLogs.id, id));
+    return log;
+  }
+
+  // IDOR Protection: Get threat log only if it belongs to the user
+  async getThreatLogByIdAndUser(id: string, userId: string): Promise<ThreatLog | undefined> {
+    const [log] = await db.select().from(threatLogs).where(
+      and(eq(threatLogs.id, id), eq(threatLogs.userId, userId))
+    );
+    return log;
   }
 
   async createThreatLog(log: InsertThreatLog): Promise<ThreatLog> {
@@ -79,8 +94,12 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateThreatLogStatus(id: string, status: string): Promise<ThreatLog | undefined> {
-    const [updated] = await db.update(threatLogs).set({ status, resolvedAt: status === "resolved" ? new Date() : null }).where(eq(threatLogs.id, id)).returning();
+  // IDOR Protection: Update only if log belongs to user
+  async updateThreatLogStatus(id: string, userId: string, status: string): Promise<ThreatLog | undefined> {
+    const [updated] = await db.update(threatLogs)
+      .set({ status, resolvedAt: status === "resolved" ? new Date() : null })
+      .where(and(eq(threatLogs.id, id), eq(threatLogs.userId, userId)))
+      .returning();
     return updated;
   }
 
