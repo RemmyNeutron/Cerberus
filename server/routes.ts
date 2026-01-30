@@ -1,16 +1,297 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { z } from "zod";
 import { storage } from "./storage";
+import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
+import { seedDatabase, createUserDefaults } from "./seed";
+
+// Validation schemas
+const updateProtectionSchema = z.object({
+  headType: z.enum(["deepfake", "surveillance", "containment"]),
+  enabled: z.boolean(),
+});
+
+const createSubscriptionSchema = z.object({
+  planId: z.string().min(1),
+  billingCycle: z.enum(["monthly", "yearly"]),
+});
+
+const updateSubscriptionSchema = z.object({
+  status: z.enum(["active", "cancelled", "expired"]).optional(),
+  billingCycle: z.enum(["monthly", "yearly"]).optional(),
+});
+
+const createThreatLogSchema = z.object({
+  headType: z.enum(["deepfake", "surveillance", "containment"]),
+  threatLevel: z.enum(["low", "medium", "high", "critical"]),
+  description: z.string().min(1),
+  status: z.enum(["detected", "blocked", "resolved"]).optional(),
+});
+
+const updateThreatLogSchema = z.object({
+  status: z.enum(["detected", "blocked", "resolved"]),
+});
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
+  // Setup authentication (must be before other routes)
+  await setupAuth(app);
+  registerAuthRoutes(app);
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  // Seed database with default data
+  await seedDatabase();
+
+  // ============ SUBSCRIPTION PLANS ============
+
+  // Get subscription plans (public route)
+  app.get("/api/plans", async (req, res) => {
+    try {
+      const plans = await storage.getSubscriptionPlans();
+      res.json(plans);
+    } catch (error) {
+      console.error("Error fetching plans:", error);
+      res.status(500).json({ message: "Failed to fetch subscription plans" });
+    }
+  });
+
+  // ============ USER SUBSCRIPTIONS ============
+
+  // Get user subscription
+  app.get("/api/subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscription = await storage.getUserSubscription(userId);
+      res.json(subscription || null);
+    } catch (error) {
+      console.error("Error fetching subscription:", error);
+      res.status(500).json({ message: "Failed to fetch subscription" });
+    }
+  });
+
+  // Create user subscription
+  app.post("/api/subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const validation = createSubscriptionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ message: "Invalid request body", errors: validation.error.errors });
+      }
+
+      const { planId, billingCycle } = validation.data;
+      
+      // Check if user already has a subscription
+      const existing = await storage.getUserSubscription(userId);
+      if (existing) {
+        return res.status(400).json({ message: "User already has an active subscription" });
+      }
+
+      const subscription = await storage.createUserSubscription({
+        userId,
+        planId,
+        billingCycle,
+        status: "active",
+      });
+      
+      res.status(201).json(subscription);
+    } catch (error) {
+      console.error("Error creating subscription:", error);
+      res.status(500).json({ message: "Failed to create subscription" });
+    }
+  });
+
+  // Update user subscription
+  app.patch("/api/subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const validation = updateSubscriptionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ message: "Invalid request body", errors: validation.error.errors });
+      }
+
+      const subscription = await storage.getUserSubscription(userId);
+      if (!subscription) {
+        return res.status(404).json({ message: "No subscription found" });
+      }
+
+      const updated = await storage.updateUserSubscription(subscription.id, validation.data);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating subscription:", error);
+      res.status(500).json({ message: "Failed to update subscription" });
+    }
+  });
+
+  // Cancel subscription
+  app.delete("/api/subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const subscription = await storage.getUserSubscription(userId);
+      if (!subscription) {
+        return res.status(404).json({ message: "No subscription found" });
+      }
+
+      const updated = await storage.updateUserSubscription(subscription.id, { status: "cancelled" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error cancelling subscription:", error);
+      res.status(500).json({ message: "Failed to cancel subscription" });
+    }
+  });
+
+  // ============ PROTECTION STATUS ============
+
+  // Get user's protection status
+  app.get("/api/protection-status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Ensure user has defaults
+      await createUserDefaults(userId);
+      
+      let status = await storage.getProtectionStatus(userId);
+      
+      if (!status) {
+        status = await storage.createProtectionStatus({
+          userId,
+          deepfakeEnabled: true,
+          surveillanceEnabled: true,
+          containmentEnabled: true,
+          threatsBlockedToday: 0,
+        });
+      }
+      
+      res.json(status);
+    } catch (error) {
+      console.error("Error fetching protection status:", error);
+      res.status(500).json({ message: "Failed to fetch protection status" });
+    }
+  });
+
+  // Update protection status
+  app.patch("/api/protection-status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const validation = updateProtectionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ message: "Invalid request body", errors: validation.error.errors });
+      }
+
+      const { headType, enabled } = validation.data;
+
+      const updateData: any = {};
+      if (headType === "deepfake") updateData.deepfakeEnabled = enabled;
+      if (headType === "surveillance") updateData.surveillanceEnabled = enabled;
+      if (headType === "containment") updateData.containmentEnabled = enabled;
+
+      const status = await storage.updateProtectionStatus(userId, updateData);
+      
+      if (!status) {
+        return res.status(404).json({ message: "Protection status not found" });
+      }
+      
+      res.json(status);
+    } catch (error) {
+      console.error("Error updating protection status:", error);
+      res.status(500).json({ message: "Failed to update protection status" });
+    }
+  });
+
+  // ============ THREAT LOGS ============
+
+  // Get threat logs
+  app.get("/api/threat-logs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const logs = await storage.getThreatLogs(userId);
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching threat logs:", error);
+      res.status(500).json({ message: "Failed to fetch threat logs" });
+    }
+  });
+
+  // Create threat log
+  app.post("/api/threat-logs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const validation = createThreatLogSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ message: "Invalid request body", errors: validation.error.errors });
+      }
+
+      const log = await storage.createThreatLog({
+        userId,
+        ...validation.data,
+        status: validation.data.status || "detected",
+      });
+      
+      res.status(201).json(log);
+    } catch (error) {
+      console.error("Error creating threat log:", error);
+      res.status(500).json({ message: "Failed to create threat log" });
+    }
+  });
+
+  // Update threat log status
+  app.patch("/api/threat-logs/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      const validation = updateThreatLogSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ message: "Invalid request body", errors: validation.error.errors });
+      }
+
+      const log = await storage.updateThreatLogStatus(id, validation.data.status);
+      
+      if (!log) {
+        return res.status(404).json({ message: "Threat log not found" });
+      }
+      
+      res.json(log);
+    } catch (error) {
+      console.error("Error updating threat log:", error);
+      res.status(500).json({ message: "Failed to update threat log" });
+    }
+  });
+
+  // ============ STATS ============
+
+  // Get stats
+  app.get("/api/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const logs = await storage.getThreatLogs(userId);
+      const status = await storage.getProtectionStatus(userId);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const threatsToday = logs.filter(log => {
+        const logDate = new Date(log.detectedAt || 0);
+        return logDate >= today;
+      }).length;
+
+      const totalThreatsBlocked = logs.filter(log => log.status === "blocked" || log.status === "resolved").length;
+
+      res.json({
+        totalThreatsBlocked,
+        threatsToday,
+        lastScan: "Just now",
+        securityScore: 98,
+      });
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+      res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
 
   return httpServer;
 }
