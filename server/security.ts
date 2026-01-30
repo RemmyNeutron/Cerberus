@@ -6,23 +6,46 @@ import { z } from "zod";
 
 // ============ SECURITY HEADERS (XSS, Clickjacking, Content-Type Sniffing) ============
 
-export const securityHeaders = helmet({
-  // Content Security Policy - prevents XSS attacks
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"], // Required for Vite HMR in dev
-      styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
-      imgSrc: ["'self'", "data:", "blob:", "https:"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      connectSrc: ["'self'", "wss:", "https:"],
-      frameSrc: ["'none'"], // Prevent embedding in iframes (clickjacking)
-      objectSrc: ["'none'"],
-      upgradeInsecureRequests: [],
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
-    },
+const isDevelopment = process.env.NODE_ENV !== "production";
+
+// Development CSP (relaxed for Vite HMR)
+const developmentCSP = {
+  directives: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Required for Vite HMR
+    styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles in dev
+    imgSrc: ["'self'", "data:", "blob:", "https:"],
+    fontSrc: ["'self'", "https://fonts.gstatic.com"],
+    connectSrc: ["'self'", "wss:", "ws:", "https:"],
+    frameSrc: ["'none'"],
+    objectSrc: ["'none'"],
+    baseUri: ["'self'"],
+    formAction: ["'self'"],
   },
+};
+
+// Production CSP (strict)
+const productionCSP = {
+  directives: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'"], // No unsafe-inline in production
+    styleSrc: ["'self'", "'unsafe-inline'"], // Inline styles often needed for component libraries
+    imgSrc: ["'self'", "data:", "blob:", "https:"],
+    fontSrc: ["'self'", "https://fonts.gstatic.com"],
+    connectSrc: ["'self'", "https:"],
+    frameSrc: ["'none'"], // Prevent embedding in iframes (clickjacking)
+    objectSrc: ["'none'"],
+    upgradeInsecureRequests: [],
+    baseUri: ["'self'"],
+    formAction: ["'self'"],
+    frameAncestors: ["'none'"], // Additional clickjacking protection
+    blockAllMixedContent: [],
+  },
+};
+
+export const securityHeaders = helmet({
+  // Content Security Policy - environment-specific
+  contentSecurityPolicy: isDevelopment ? developmentCSP : productionCSP,
   // X-Frame-Options - prevents clickjacking
   frameguard: { action: "deny" },
   // X-Content-Type-Options - prevents MIME type sniffing
@@ -324,11 +347,11 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     return next();
   }
   
-  // For APIs, we use SameSite cookies + origin checking instead of tokens
-  // This is the "defense in depth" approach
+  // Defense in depth: Origin checking + SameSite cookies
   const origin = req.headers.origin;
   const host = req.headers.host;
   
+  // Check 1: Origin header validation
   if (origin) {
     try {
       const originUrl = new URL(origin);
@@ -344,6 +367,45 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
       }
     } catch {
       return res.status(403).json({ message: "Forbidden" });
+    }
+  }
+  
+  // Check 2: Referer header validation for same-site requests without origin
+  if (!origin) {
+    const referer = req.headers.referer;
+    if (referer) {
+      try {
+        const refererUrl = new URL(referer);
+        if (host && refererUrl.host !== host) {
+          logSecurityEvent({
+            type: "csrf_referer_mismatch",
+            ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown",
+            path: req.path,
+            method: req.method,
+            details: { referer, host },
+          });
+          return res.status(403).json({ message: "Forbidden" });
+        }
+      } catch {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+    } else {
+      // No origin or referer - block for security (except for same-origin navigation)
+      // Allow requests that come from browser fetch with credentials
+      const contentType = req.headers["content-type"];
+      const isJsonRequest = contentType?.includes("application/json");
+      
+      // If it's a JSON request without origin/referer, likely from direct API call
+      // This is acceptable as long as we have proper authentication
+      if (!isJsonRequest) {
+        logSecurityEvent({
+          type: "csrf_no_origin_referer",
+          ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown",
+          path: req.path,
+          method: req.method,
+        });
+        return res.status(403).json({ message: "Forbidden" });
+      }
     }
   }
   

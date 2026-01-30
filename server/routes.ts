@@ -10,7 +10,48 @@ import {
   sanitizeString,
   logSecurityEvent,
   uuidSchema,
+  generateCsrfToken,
+  validateCsrfToken,
 } from "./security";
+
+// ============ CSRF TOKEN VALIDATION (Mandatory for State-Changing Requests) ============
+
+// CSRF token validation middleware - enforces token for state-changing requests
+function enforceCsrfValidation(req: any, res: Response, next: NextFunction) {
+  // Get token from header (X-CSRF-Token)
+  const csrfToken = req.headers["x-csrf-token"];
+  const sessionId = req.sessionID || req.authenticatedUserId;
+  
+  if (!sessionId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
+  // Require CSRF token for authenticated state-changing requests
+  if (!csrfToken) {
+    logSecurityEvent({
+      type: "csrf_token_missing",
+      userId: req.authenticatedUserId,
+      ip: getClientIp(req),
+      path: req.path,
+      method: req.method,
+    });
+    return res.status(403).json({ message: "CSRF token required" });
+  }
+  
+  // Validate the token
+  if (!validateCsrfToken(csrfToken, sessionId)) {
+    logSecurityEvent({
+      type: "csrf_token_invalid",
+      userId: req.authenticatedUserId,
+      ip: getClientIp(req),
+      path: req.path,
+      method: req.method,
+    });
+    return res.status(403).json({ message: "Invalid CSRF token" });
+  }
+  
+  next();
+}
 
 // ============ VALIDATION SCHEMAS ============
 
@@ -98,6 +139,20 @@ export async function registerRoutes(
   // Seed database with default data
   await seedDatabase();
 
+  // ============ CSRF TOKEN ENDPOINT ============
+
+  // Get CSRF token for authenticated sessions
+  app.get("/api/csrf-token", isAuthenticated, requireAuth, async (req: any, res) => {
+    try {
+      const sessionId = req.sessionID || req.authenticatedUserId;
+      const token = generateCsrfToken(sessionId);
+      res.json({ csrfToken: token });
+    } catch (error) {
+      console.error("Error generating CSRF token:", error);
+      res.status(500).json({ message: "Failed to generate CSRF token" });
+    }
+  });
+
   // ============ SUBSCRIPTION PLANS (Public) ============
 
   // Get subscription plans (public route - read-only, safe)
@@ -136,7 +191,7 @@ export async function registerRoutes(
   });
 
   // Create user subscription (rate limited for sensitive operations)
-  app.post("/api/subscription", isAuthenticated, requireAuth, sensitiveRateLimiter, async (req: any, res) => {
+  app.post("/api/subscription", isAuthenticated, requireAuth, enforceCsrfValidation, sensitiveRateLimiter, async (req: any, res) => {
     try {
       const userId = req.authenticatedUserId;
       
@@ -161,29 +216,33 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid subscription plan" });
       }
       
-      // Check if user already has a subscription (race condition prevention)
-      const existing = await storage.getUserSubscription(userId);
-      if (existing) {
-        return res.status(409).json({ message: "User already has a subscription" });
+      // Atomic subscription creation with unique constraint handling
+      // The database unique constraint on userId prevents race conditions
+      try {
+        const subscription = await storage.createUserSubscription({
+          userId,
+          planId,
+          billingCycle,
+          status: "active",
+        });
+        
+        logSecurityEvent({
+          type: "subscription_created",
+          userId,
+          ip: getClientIp(req),
+          path: req.path,
+          method: req.method,
+          details: { planId, billingCycle },
+        });
+        
+        res.status(201).json(subscription);
+      } catch (dbError: any) {
+        // Handle unique constraint violation (race condition protection)
+        if (dbError.code === "23505" || dbError.message?.includes("unique")) {
+          return res.status(409).json({ message: "User already has a subscription" });
+        }
+        throw dbError;
       }
-
-      const subscription = await storage.createUserSubscription({
-        userId,
-        planId,
-        billingCycle,
-        status: "active",
-      });
-      
-      logSecurityEvent({
-        type: "subscription_created",
-        userId,
-        ip: getClientIp(req),
-        path: req.path,
-        method: req.method,
-        details: { planId, billingCycle },
-      });
-      
-      res.status(201).json(subscription);
     } catch (error) {
       console.error("Error creating subscription:", error);
       res.status(500).json({ message: "Failed to create subscription" });
@@ -191,7 +250,7 @@ export async function registerRoutes(
   });
 
   // Update user subscription
-  app.patch("/api/subscription", isAuthenticated, requireAuth, sensitiveRateLimiter, async (req: any, res) => {
+  app.patch("/api/subscription", isAuthenticated, requireAuth, enforceCsrfValidation, sensitiveRateLimiter, async (req: any, res) => {
     try {
       const userId = req.authenticatedUserId;
       
@@ -237,7 +296,7 @@ export async function registerRoutes(
   });
 
   // Cancel subscription
-  app.delete("/api/subscription", isAuthenticated, requireAuth, sensitiveRateLimiter, async (req: any, res) => {
+  app.delete("/api/subscription", isAuthenticated, requireAuth, enforceCsrfValidation, sensitiveRateLimiter, async (req: any, res) => {
     try {
       const userId = req.authenticatedUserId;
       
@@ -305,7 +364,7 @@ export async function registerRoutes(
   });
 
   // Update protection status
-  app.patch("/api/protection-status", isAuthenticated, requireAuth, async (req: any, res) => {
+  app.patch("/api/protection-status", isAuthenticated, requireAuth, enforceCsrfValidation, async (req: any, res) => {
     try {
       const userId = req.authenticatedUserId;
       
@@ -351,7 +410,7 @@ export async function registerRoutes(
   });
 
   // Create threat log
-  app.post("/api/threat-logs", isAuthenticated, requireAuth, async (req: any, res) => {
+  app.post("/api/threat-logs", isAuthenticated, requireAuth, enforceCsrfValidation, async (req: any, res) => {
     try {
       const userId = req.authenticatedUserId;
       
@@ -374,7 +433,7 @@ export async function registerRoutes(
   });
 
   // Update threat log status (IDOR protected)
-  app.patch("/api/threat-logs/:id", isAuthenticated, requireAuth, async (req: any, res) => {
+  app.patch("/api/threat-logs/:id", isAuthenticated, requireAuth, enforceCsrfValidation, async (req: any, res) => {
     try {
       const userId = req.authenticatedUserId;
       

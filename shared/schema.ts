@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -18,10 +18,10 @@ export const subscriptionPlans = pgTable("subscription_plans", {
   isPopular: boolean("is_popular").default(false),
 });
 
-// User Subscriptions
+// User Subscriptions - unique constraint on userId to prevent race conditions
 export const userSubscriptions = pgTable("user_subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(),
+  userId: varchar("user_id").notNull().unique(), // Unique constraint prevents duplicate subscriptions
   planId: varchar("plan_id").notNull(),
   status: text("status").notNull().default("active"), // 'active', 'cancelled', 'expired'
   billingCycle: text("billing_cycle").notNull().default("monthly"), // 'monthly', 'yearly'
