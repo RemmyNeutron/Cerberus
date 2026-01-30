@@ -42,7 +42,7 @@ export function HeroSection() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <Button size="lg" className="text-base px-8 gap-2 bg-orange-600 hover:bg-orange-700 border-orange-700" asChild data-testid="button-hero-get-started">
-              <a href="/api/login">
+              <a href="/api/login" target="_top">
                 Start Free Trial
                 <ArrowRight className="h-4 w-4" />
               </a>

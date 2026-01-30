@@ -147,7 +147,7 @@ function PricingCard({ tier, isYearly }: PricingCardProps) {
           asChild
           data-testid={`button-cta-${tier.tier}`}
         >
-          <a href="/api/login" data-testid={`link-select-${tier.tier}`}>{tier.ctaText}</a>
+          <a href="/api/login" target="_top" data-testid={`link-select-${tier.tier}`}>{tier.ctaText}</a>
         </Button>
       </CardFooter>
     </Card>

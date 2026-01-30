@@ -98,7 +98,7 @@ export function Navigation() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <a href="/api/logout" className="cursor-pointer text-destructive" data-testid="menu-item-logout">
+                  <a href="/api/logout" target="_top" className="cursor-pointer text-destructive" data-testid="menu-item-logout">
                     <LogOut className="mr-2 h-4 w-4" />
                     Log out
                   </a>
@@ -108,10 +108,10 @@ export function Navigation() {
           ) : (
             <div className="flex items-center gap-2">
               <Button variant="ghost" asChild data-testid="button-login">
-                <a href="/api/login">Log in</a>
+                <a href="/api/login" target="_top">Log in</a>
               </Button>
               <Button asChild data-testid="button-get-started">
-                <a href="/api/login">Get Started</a>
+                <a href="/api/login" target="_top">Get Started</a>
               </Button>
             </div>
           )}

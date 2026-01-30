@@ -18,7 +18,12 @@ async function fetchUser(): Promise<User | null> {
 }
 
 async function logout(): Promise<void> {
-  window.location.href = "/api/logout";
+  // Use top-level navigation to break out of iframe (Webview)
+  if (window.top) {
+    window.top.location.href = "/api/logout";
+  } else {
+    window.location.href = "/api/logout";
+  }
 }
 
 export function useAuth() {
