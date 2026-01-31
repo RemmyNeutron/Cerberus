@@ -6,6 +6,7 @@ import { Footer } from "@/components/footer";
 import { ProtectionStatusCard } from "@/components/protection-status-card";
 import { ThreatLogItem } from "@/components/threat-log-item";
 import { StatsCard } from "@/components/stats-card";
+import { MediaScanner } from "@/components/media-scanner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -149,6 +150,11 @@ export default function DashboardPage() {
               />
             </>
           )}
+        </div>
+
+        {/* Media Scanner */}
+        <div className="mb-8">
+          <MediaScanner />
         </div>
 
         {/* Main content grid */}

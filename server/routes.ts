@@ -1,6 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
+import multer from "multer";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
 import { seedDatabase, createUserDefaults } from "./seed";
@@ -509,6 +510,136 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching stats:", error);
       res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
+  // ============ MEDIA SCANNING ============
+
+  // Configure multer for file uploads (memory storage for processing)
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 100 * 1024 * 1024, // 100MB limit
+    },
+    fileFilter: (_req, file, cb) => {
+      const allowedMimes = [
+        // Images
+        "image/jpeg", "image/png", "image/gif", "image/webp", "image/avif", 
+        "image/heic", "image/bmp", "image/tiff",
+        // Videos
+        "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", 
+        "video/x-matroska", "video/x-m4v", "video/x-ms-wmv",
+        // Audio
+        "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/flac",
+        "audio/aac", "audio/x-ms-wma",
+      ];
+      
+      if (allowedMimes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error("Unsupported file format"));
+      }
+    },
+  });
+
+  // Scan media for AI-generated content
+  app.post("/api/scan-media", isAuthenticated, requireAuth, upload.single("file"), async (req: any, res) => {
+    try {
+      const userId = req.authenticatedUserId;
+      
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const file = req.file;
+      
+      // Simulate AI detection analysis
+      // In production, this would call an actual AI detection service
+      const aiProbability = Math.random();
+      const isAiGenerated = aiProbability > 0.65;
+      
+      // Generate realistic detection indicators based on file type
+      const fileCategory = file.mimetype.startsWith("image/") 
+        ? "image" 
+        : file.mimetype.startsWith("video/") 
+          ? "video" 
+          : "audio";
+      
+      const indicatorsByType: Record<string, string[]> = {
+        image: [
+          "Texture consistency patterns",
+          "Facial feature analysis",
+          "Lighting irregularities",
+          "Edge artifact detection",
+          "Metadata analysis",
+          "GAN fingerprint scan",
+        ],
+        video: [
+          "Frame-to-frame consistency",
+          "Temporal coherence analysis",
+          "Lip-sync verification",
+          "Motion artifact detection",
+          "Compression pattern analysis",
+          "Audio-visual sync check",
+        ],
+        audio: [
+          "Voice pattern analysis",
+          "Spectral consistency",
+          "Breathing pattern detection",
+          "Background noise analysis",
+          "Pitch variation mapping",
+          "TTS artifact detection",
+        ],
+      };
+      
+      const allIndicators = indicatorsByType[fileCategory] || [];
+      const numIndicators = isAiGenerated 
+        ? Math.floor(Math.random() * 3) + 2 
+        : Math.floor(Math.random() * 2);
+      const selectedIndicators = allIndicators
+        .sort(() => Math.random() - 0.5)
+        .slice(0, numIndicators);
+
+      // Log the scan event
+      logSecurityEvent({
+        type: "media_scan",
+        userId,
+        ip: getClientIp(req),
+        path: req.path,
+        method: req.method,
+        details: {
+          fileName: file.originalname,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          isAiGenerated,
+          aiProbability: aiProbability.toFixed(3),
+        },
+      });
+
+      const result = {
+        fileName: file.originalname,
+        fileType: fileCategory,
+        fileSize: file.size,
+        aiProbability,
+        isAiGenerated,
+        detectionDetails: {
+          category: fileCategory.charAt(0).toUpperCase() + fileCategory.slice(1),
+          confidence: aiProbability > 0.85 
+            ? "Very High" 
+            : aiProbability > 0.65 
+              ? "High" 
+              : aiProbability > 0.35 
+                ? "Medium" 
+                : "Low",
+          indicators: selectedIndicators,
+        },
+        scannedAt: new Date().toISOString(),
+      };
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error scanning media:", error);
+      res.status(500).json({ message: "Failed to scan media" });
     }
   });
 
