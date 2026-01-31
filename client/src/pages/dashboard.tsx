@@ -187,6 +187,7 @@ export default function DashboardPage() {
                   onToggle={(enabled) => handleToggle("deepfake", enabled)}
                   isLoading={updateProtectionMutation.isPending}
                   threatCount={threatLogs?.filter((l) => l.headType === "deepfake" && l.status === "blocked").length}
+                  threats={threatLogs || []}
                 />
                 <ProtectionStatusCard
                   headType="surveillance"
@@ -194,6 +195,7 @@ export default function DashboardPage() {
                   onToggle={(enabled) => handleToggle("surveillance", enabled)}
                   isLoading={updateProtectionMutation.isPending}
                   threatCount={threatLogs?.filter((l) => l.headType === "surveillance" && l.status === "blocked").length}
+                  threats={threatLogs || []}
                 />
                 <ProtectionStatusCard
                   headType="containment"
@@ -201,6 +203,7 @@ export default function DashboardPage() {
                   onToggle={(enabled) => handleToggle("containment", enabled)}
                   isLoading={updateProtectionMutation.isPending}
                   threatCount={threatLogs?.filter((l) => l.headType === "containment" && l.status === "blocked").length}
+                  threats={threatLogs || []}
                 />
               </div>
             )}

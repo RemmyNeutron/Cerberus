@@ -38,6 +38,13 @@ export const threatLogs = pgTable("threat_logs", {
   threatLevel: text("threat_level").notNull(), // 'low', 'medium', 'high', 'critical'
   description: text("description").notNull(),
   status: text("status").notNull().default("detected"), // 'detected', 'blocked', 'resolved'
+  // Enhanced threat details
+  source: text("source"), // Where the threat originated (e.g., "discord.com", "unknown-tracker.xyz")
+  sourceType: text("source_type"), // 'website', 'email', 'application', 'network', 'file'
+  blockedContent: text("blocked_content"), // What was blocked (e.g., "Synthetic voice call", "Tracking pixel")
+  reason: text("reason"), // Why it was blocked (e.g., "AI voice patterns detected", "Known tracker fingerprint")
+  ipAddress: text("ip_address"), // Source IP if applicable
+  actionTaken: text("action_taken"), // What action was taken (e.g., "Connection terminated", "Content quarantined")
   detectedAt: timestamp("detected_at").defaultNow(),
   resolvedAt: timestamp("resolved_at"),
 });

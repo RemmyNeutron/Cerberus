@@ -83,7 +83,7 @@ export async function createUserDefaults(userId: string) {
         threatsBlockedToday: 0,
       });
 
-      // Create some sample threat logs for demo purposes
+      // Create some sample threat logs for demo purposes with detailed information
       const sampleThreats = [
         {
           userId,
@@ -91,6 +91,12 @@ export async function createUserDefaults(userId: string) {
           threatLevel: "medium",
           description: "Potential deepfake video detected in incoming email attachment",
           status: "blocked",
+          source: "suspicious-sender@mail-spoof.net",
+          sourceType: "email",
+          blockedContent: "Video attachment (meeting_recording.mp4)",
+          reason: "AI voice synthesis patterns detected with 87% confidence. Lip-sync inconsistencies identified.",
+          ipAddress: "185.234.72.19",
+          actionTaken: "Attachment quarantined and sender flagged",
         },
         {
           userId,
@@ -98,6 +104,12 @@ export async function createUserDefaults(userId: string) {
           threatLevel: "low",
           description: "Third-party tracker blocked on visited website",
           status: "blocked",
+          source: "tracker.adnetwork-xyz.com",
+          sourceType: "website",
+          blockedContent: "Cross-site tracking pixel",
+          reason: "Known fingerprinting tracker attempting to collect browser data and browsing history.",
+          ipAddress: "104.21.45.67",
+          actionTaken: "Connection blocked, request nullified",
         },
         {
           userId,
@@ -105,6 +117,12 @@ export async function createUserDefaults(userId: string) {
           threatLevel: "high",
           description: "Suspicious network activity contained and isolated",
           status: "resolved",
+          source: "unknown-service.local:4433",
+          sourceType: "network",
+          blockedContent: "Outbound data exfiltration attempt",
+          reason: "Unusual outbound traffic pattern detected. Application attempting to send encrypted data to unknown server.",
+          ipAddress: "192.168.1.105 → 91.234.56.78",
+          actionTaken: "Process sandboxed, network connection terminated",
         },
         {
           userId,
@@ -112,6 +130,12 @@ export async function createUserDefaults(userId: string) {
           threatLevel: "low",
           description: "AI-generated image detected in social media feed",
           status: "blocked",
+          source: "twitter.com/suspicious_account",
+          sourceType: "website",
+          blockedContent: "Profile image (synthetic face)",
+          reason: "GAN-generated face detected. Symmetric lighting artifacts and unnatural skin texture patterns identified.",
+          ipAddress: null,
+          actionTaken: "Image flagged with AI warning overlay",
         },
         {
           userId,
@@ -119,6 +143,38 @@ export async function createUserDefaults(userId: string) {
           threatLevel: "medium",
           description: "Facial recognition attempt blocked from unknown source",
           status: "blocked",
+          source: "cdn.facial-analytics.io",
+          sourceType: "application",
+          blockedContent: "Webcam access request with facial mapping",
+          reason: "Unauthorized facial biometric collection attempt. App requested camera access with hidden analytics payload.",
+          ipAddress: "172.67.182.91",
+          actionTaken: "Camera access denied, analytics script blocked",
+        },
+        {
+          userId,
+          headType: "containment",
+          threatLevel: "critical",
+          description: "Malicious script injection attempt neutralized",
+          status: "blocked",
+          source: "compromised-plugin.js",
+          sourceType: "file",
+          blockedContent: "Browser extension payload",
+          reason: "Detected obfuscated JavaScript attempting to inject keylogger and credential harvesting code.",
+          ipAddress: "45.89.127.203",
+          actionTaken: "Script execution halted, extension quarantined",
+        },
+        {
+          userId,
+          headType: "deepfake",
+          threatLevel: "high",
+          description: "Synthetic voice detected in incoming call",
+          status: "blocked",
+          source: "+1 (555) 0123-4567",
+          sourceType: "application",
+          blockedContent: "VoIP call (voice clone attempt)",
+          reason: "Real-time voice synthesis detected. Call audio patterns match known AI TTS models with 94% confidence.",
+          ipAddress: "203.0.113.42",
+          actionTaken: "Call terminated, caller ID flagged as spoofed",
         },
       ];
 
