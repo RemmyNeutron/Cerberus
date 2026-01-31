@@ -15,7 +15,7 @@ import { LogOut, LayoutDashboard, User } from "lucide-react";
 
 const navLinks = [
   { href: "#features", label: "Features" },
-  { href: "#pricing", label: "Pricing" },
+  { href: "#waitlist", label: "Early Access" },
   { href: "/downloads", label: "Downloads" },
 ];
 

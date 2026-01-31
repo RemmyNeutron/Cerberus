@@ -91,7 +91,12 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-border">
+        <div className="mt-12 pt-8 border-t border-border space-y-4">
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground/80 max-w-xl mx-auto">
+              Cerberus is a pre-release platform. Features and availability may change during testing.
+            </p>
+          </div>
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="text-sm text-muted-foreground text-center md:text-left">
               <p>© {new Date().getFullYear()} Cerberus Security. All rights reserved.</p>

@@ -1,7 +1,7 @@
 import { Navigation } from "@/components/navigation";
 import { HeroSection } from "@/components/hero-section";
 import { FeaturesSection } from "@/components/features-section";
-import { PricingSection } from "@/components/pricing-section";
+import { WaitlistSection } from "@/components/waitlist-section";
 import { DonationSection } from "@/components/donation-section";
 import { Footer } from "@/components/footer";
 
@@ -12,7 +12,7 @@ export default function LandingPage() {
       <main className="flex-1">
         <HeroSection />
         <FeaturesSection />
-        <PricingSection />
+        <WaitlistSection />
         <DonationSection />
       </main>
       <Footer />
