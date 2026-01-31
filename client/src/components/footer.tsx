@@ -93,11 +93,12 @@ export function Footer() {
 
         <div className="mt-12 pt-8 border-t border-border">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="text-sm text-muted-foreground text-center md:text-left">
+              <p>© {new Date().getFullYear()} Cerberus Security. All rights reserved.</p>
+              <p className="mt-1">A Neutron Research & Development LLC product</p>
+            </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} Cerberus Security. All rights reserved.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Guarding the digital underworld since 2024
+              Guarding the digital underworld since 2026
             </p>
           </div>
         </div>
