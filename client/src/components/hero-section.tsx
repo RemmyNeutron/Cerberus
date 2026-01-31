@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import cerberusBg from "@assets/CerberusBG_1769811901895.png";
 
 export function HeroSection() {
@@ -42,8 +42,8 @@ export function HeroSection() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <Button size="lg" className="text-base px-8 gap-2 bg-orange-600 hover:bg-orange-700 border-orange-700" asChild data-testid="button-hero-get-started">
-              <a href="/api/login" target="_top">
-                Start Free Trial
+              <a href="#waitlist">
+                Join Early Access
                 <ArrowRight className="h-4 w-4" />
               </a>
             </Button>
@@ -52,22 +52,6 @@ export function HeroSection() {
                 Explore Features
               </a>
             </Button>
-          </div>
-
-          {/* Trust indicators */}
-          <div className="flex flex-wrap items-center justify-center gap-6 pt-8 text-sm text-gray-300">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-orange-500" aria-hidden="true" />
-              <span>14-day free trial</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-orange-500" aria-hidden="true" />
-              <span>No credit card required</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-orange-500" aria-hidden="true" />
-              <span>Cancel anytime</span>
-            </div>
           </div>
         </div>
       </div>
