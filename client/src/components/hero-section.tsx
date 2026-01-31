@@ -16,16 +16,16 @@ export function HeroSection() {
       {/* Additional top gradient for header area */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent" />
 
+      {/* Badge positioned in top right corner */}
+      <div className="absolute top-6 right-6 z-20">
+        <Badge variant="secondary" className="px-4 py-2 text-sm gap-2 bg-black/50 backdrop-blur-sm border-orange-500/30" data-testid="badge-hero-ai">
+          <Sparkles className="h-4 w-4 text-orange-500" aria-hidden="true" />
+          <span className="text-white">AI-Powered Security Protection</span>
+        </Badge>
+      </div>
+
       <div className="container mx-auto px-4 py-20 md:py-32 relative z-10">
         <div className="max-w-4xl mx-auto text-center space-y-8">
-          {/* Badge */}
-          <div className="flex justify-center">
-            <Badge variant="secondary" className="px-4 py-2 text-sm gap-2 bg-black/50 backdrop-blur-sm border-orange-500/30" data-testid="badge-hero-ai">
-              <Sparkles className="h-4 w-4 text-orange-500" aria-hidden="true" />
-              <span className="text-white">AI-Powered Security Protection</span>
-            </Badge>
-          </div>
-
           {/* Main headline */}
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-white drop-shadow-lg" data-testid="text-hero-headline">
             Three Heads.{" "}
