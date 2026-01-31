@@ -16,6 +16,7 @@ import { LogOut, LayoutDashboard, User } from "lucide-react";
 const navLinks = [
   { href: "#features", label: "Features" },
   { href: "#pricing", label: "Pricing" },
+  { href: "/downloads", label: "Downloads" },
 ];
 
 export function Navigation() {
@@ -37,14 +38,25 @@ export function Navigation() {
 
         <nav className="hidden md:flex items-center gap-6" aria-label="Main navigation">
           {!isAuthenticated && navLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-              data-testid={`link-${link.label.toLowerCase()}`}
-            >
-              {link.label}
-            </a>
+            link.href.startsWith("/") ? (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                data-testid={`link-${link.label.toLowerCase()}`}
+              >
+                {link.label}
+              </Link>
+            ) : (
+              <a
+                key={link.href}
+                href={link.href}
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                data-testid={`link-${link.label.toLowerCase()}`}
+              >
+                {link.label}
+              </a>
+            )
           ))}
           {isAuthenticated && (
             <Link

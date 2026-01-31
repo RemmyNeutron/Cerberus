@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import NotFound from "@/pages/not-found";
 import LandingPage from "@/pages/landing";
 import DashboardPage from "@/pages/dashboard";
+import DownloadsPage from "@/pages/downloads";
 
 function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -35,6 +36,7 @@ function Router() {
     <Switch>
       <Route path="/" component={HomePage} />
       <Route path="/dashboard" component={DashboardPage} />
+      <Route path="/downloads" component={DownloadsPage} />
       <Route component={NotFound} />
     </Switch>
   );
