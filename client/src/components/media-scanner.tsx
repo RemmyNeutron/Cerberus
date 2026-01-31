@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileImage, FileVideo, FileAudio, X, AlertTriangle, CheckCircle, Loader2, ScanLine } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Upload, FileImage, FileVideo, FileAudio, X, AlertTriangle, CheckCircle, Loader2, ScanLine, Mail, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 
 interface ScanResult {
   fileName: string;
@@ -18,6 +19,19 @@ interface ScanResult {
     category: string;
     confidence: string;
     indicators: string[];
+  };
+  scannedAt: string;
+}
+
+interface EmailScanResult {
+  isPhishing: boolean;
+  isScam: boolean;
+  aiProbability: number;
+  riskLevel: "low" | "medium" | "high" | "critical";
+  detectionDetails: {
+    confidence: string;
+    indicators: string[];
+    suspiciousElements: string[];
   };
   scannedAt: string;
 }
@@ -57,12 +71,32 @@ function FileIcon({ type }: { type: string }) {
   }
 }
 
+function getRiskBadgeVariant(level: string): "default" | "secondary" | "destructive" | "outline" {
+  switch (level) {
+    case "critical":
+    case "high":
+      return "destructive";
+    case "medium":
+      return "default";
+    default:
+      return "secondary";
+  }
+}
+
 export function MediaScanner() {
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("media");
+  
+  // Media scanning state
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
+
+  // Email scanning state
+  const [emailContent, setEmailContent] = useState("");
+  const [emailScanResult, setEmailScanResult] = useState<EmailScanResult | null>(null);
+  const [emailScanProgress, setEmailScanProgress] = useState(0);
 
   const scanMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -100,6 +134,44 @@ export function MediaScanner() {
         variant: "destructive",
       });
       setScanProgress(0);
+    },
+  });
+
+  const emailScanMutation = useMutation({
+    mutationFn: async (content: string) => {
+      const response = await fetch("/api/scan-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailContent: content }),
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Email scan failed");
+      }
+      
+      return response.json() as Promise<EmailScanResult>;
+    },
+    onSuccess: (result) => {
+      setEmailScanResult(result);
+      setEmailScanProgress(100);
+      const isThreat = result.isPhishing || result.isScam;
+      toast({
+        title: "Email Scan Complete",
+        description: isThreat 
+          ? "Potential threat detected in email!" 
+          : "Email appears safe.",
+        variant: isThreat ? "destructive" : "default",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Email Scan Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      setEmailScanProgress(0);
     },
   });
 
@@ -176,10 +248,40 @@ export function MediaScanner() {
     scanMutation.mutate(selectedFile);
   };
 
+  const startEmailScan = () => {
+    if (!emailContent.trim()) {
+      toast({
+        title: "No Content",
+        description: "Please paste an email to scan.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setEmailScanProgress(0);
+    const interval = setInterval(() => {
+      setEmailScanProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(interval);
+          return prev;
+        }
+        return prev + 10;
+      });
+    }, 200);
+
+    emailScanMutation.mutate(emailContent);
+  };
+
   const clearFile = () => {
     setSelectedFile(null);
     setScanResult(null);
     setScanProgress(0);
+  };
+
+  const clearEmail = () => {
+    setEmailContent("");
+    setEmailScanResult(null);
+    setEmailScanProgress(0);
   };
 
   const fileType = selectedFile ? getFileType(selectedFile.name) : "unknown";
@@ -192,185 +294,353 @@ export function MediaScanner() {
           <CardTitle className="text-lg">AI Content Scanner</CardTitle>
         </div>
         <CardDescription>
-          Drop an image, video, or audio file to scan for AI-generated content
+          Scan media files for AI-generated content or emails for phishing threats
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {!selectedFile ? (
-          <div
-            className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              isDragging
-                ? "border-primary bg-primary/5"
-                : "border-muted-foreground/25 hover:border-primary/50"
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            data-testid="dropzone-media"
-          >
-            <input
-              type="file"
-              accept={ALL_ACCEPTED.join(",")}
-              onChange={handleInputChange}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              data-testid="input-file-upload"
-            />
-            <div className="flex flex-col items-center gap-3">
-              <div className="p-4 rounded-full bg-primary/10">
-                <Upload className="h-8 w-8 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium">Drop your file here</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  or click to browse
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-2 mt-2">
-                <Badge variant="secondary" className="text-xs gap-1">
-                  <FileImage className="h-3 w-3" />
-                  Images
-                </Badge>
-                <Badge variant="secondary" className="text-xs gap-1">
-                  <FileVideo className="h-3 w-3" />
-                  Videos
-                </Badge>
-                <Badge variant="secondary" className="text-xs gap-1">
-                  <FileAudio className="h-3 w-3" />
-                  Audio
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Max file size: 100MB
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Selected file info */}
-            <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-background">
-                  <FileIcon type={fileType} />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-medium truncate max-w-[200px]" data-testid="text-file-name">
-                    {selectedFile.name}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatFileSize(selectedFile.size)} • {fileType.charAt(0).toUpperCase() + fileType.slice(1)}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={clearFile}
-                disabled={scanMutation.isPending}
-                data-testid="button-clear-file"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="media" className="gap-2" data-testid="tab-media">
+              <Upload className="h-4 w-4" />
+              Media Files
+            </TabsTrigger>
+            <TabsTrigger value="email" className="gap-2" data-testid="tab-email">
+              <Mail className="h-4 w-4" />
+              Email Scanner
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Scan progress */}
-            {scanMutation.isPending && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Scanning for AI content...</span>
-                  <span className="font-medium">{scanProgress}%</span>
+          <TabsContent value="media">
+            {!selectedFile ? (
+              <div
+                className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                  isDragging
+                    ? "border-primary bg-primary/5"
+                    : "border-muted-foreground/25 hover:border-primary/50"
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                data-testid="dropzone-media"
+              >
+                <input
+                  type="file"
+                  accept={ALL_ACCEPTED.join(",")}
+                  onChange={handleInputChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  data-testid="input-file-upload"
+                />
+                <div className="flex flex-col items-center gap-3">
+                  <div className="p-4 rounded-full bg-primary/10">
+                    <Upload className="h-8 w-8 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Drop your file here</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      or click to browse
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-2 mt-2">
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <FileImage className="h-3 w-3" />
+                      Images
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <FileVideo className="h-3 w-3" />
+                      Videos
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <FileAudio className="h-3 w-3" />
+                      Audio
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Max file size: 100MB
+                  </p>
                 </div>
-                <Progress value={scanProgress} className="h-2" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Selected file info */}
+                <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-background">
+                      <FileIcon type={fileType} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate max-w-[200px]" data-testid="text-file-name">
+                        {selectedFile.name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatFileSize(selectedFile.size)} • {fileType.charAt(0).toUpperCase() + fileType.slice(1)}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={clearFile}
+                    disabled={scanMutation.isPending}
+                    data-testid="button-clear-file"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Scan progress */}
+                {scanMutation.isPending && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Scanning for AI content...</span>
+                      <span className="font-medium">{scanProgress}%</span>
+                    </div>
+                    <Progress value={scanProgress} className="h-2" />
+                  </div>
+                )}
+
+                {/* Scan result */}
+                {scanResult && (
+                  <div
+                    className={`p-4 rounded-lg border ${
+                      scanResult.isAiGenerated
+                        ? "bg-destructive/10 border-destructive/30"
+                        : "bg-primary/10 border-primary/30"
+                    }`}
+                    data-testid="div-scan-result"
+                  >
+                    <div className="flex items-start gap-3">
+                      {scanResult.isAiGenerated ? (
+                        <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                      ) : (
+                        <CheckCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium" data-testid="text-scan-verdict">
+                          {scanResult.isAiGenerated
+                            ? "AI-Generated Content Detected"
+                            : "Authentic Content"}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Confidence: {scanResult.detectionDetails.confidence}
+                        </p>
+                        <div className="mt-3 space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">AI Probability</span>
+                            <span className="font-medium" data-testid="text-ai-probability">
+                              {(scanResult.aiProbability * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <Progress
+                            value={scanResult.aiProbability * 100}
+                            className={`h-2 ${scanResult.isAiGenerated ? "[&>div]:bg-destructive" : ""}`}
+                          />
+                        </div>
+                        {scanResult.detectionDetails.indicators.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-sm font-medium mb-2">Detection Indicators:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {scanResult.detectionDetails.indicators.map((indicator, i) => (
+                                <Badge key={i} variant="outline" className="text-xs">
+                                  {indicator}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                {!scanResult && (
+                  <Button
+                    onClick={startScan}
+                    disabled={scanMutation.isPending}
+                    className="w-full gap-2"
+                    data-testid="button-start-scan"
+                  >
+                    {scanMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Scanning...
+                      </>
+                    ) : (
+                      <>
+                        <ScanLine className="h-4 w-4" />
+                        Scan for AI Content
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                {scanResult && (
+                  <Button
+                    variant="outline"
+                    onClick={clearFile}
+                    className="w-full"
+                    data-testid="button-scan-another"
+                  >
+                    Scan Another File
+                  </Button>
+                )}
               </div>
             )}
+          </TabsContent>
 
-            {/* Scan result */}
-            {scanResult && (
-              <div
-                className={`p-4 rounded-lg border ${
-                  scanResult.isAiGenerated
-                    ? "bg-destructive/10 border-destructive/30"
-                    : "bg-primary/10 border-primary/30"
-                }`}
-                data-testid="div-scan-result"
-              >
-                <div className="flex items-start gap-3">
-                  {scanResult.isAiGenerated ? (
-                    <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                  ) : (
-                    <CheckCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium" data-testid="text-scan-verdict">
-                      {scanResult.isAiGenerated
-                        ? "AI-Generated Content Detected"
-                        : "Authentic Content"}
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Confidence: {scanResult.detectionDetails.confidence}
-                    </p>
-                    <div className="mt-3 space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">AI Probability</span>
-                        <span className="font-medium" data-testid="text-ai-probability">
-                          {(scanResult.aiProbability * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                      <Progress
-                        value={scanResult.aiProbability * 100}
-                        className={`h-2 ${scanResult.isAiGenerated ? "[&>div]:bg-destructive" : ""}`}
-                      />
+          <TabsContent value="email">
+            {!emailScanResult ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                    <ShieldAlert className="h-4 w-4" />
+                    <span>Paste suspicious email content to scan for phishing and AI-generated scams</span>
+                  </div>
+                  <Textarea
+                    placeholder="Paste the email content here (including headers if available)..."
+                    value={emailContent}
+                    onChange={(e) => setEmailContent(e.target.value)}
+                    className="min-h-[200px] resize-none"
+                    data-testid="textarea-email-content"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Include the full email text, subject line, and sender information for best results
+                  </p>
+                </div>
+
+                {/* Email scan progress */}
+                {emailScanMutation.isPending && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Analyzing email for threats...</span>
+                      <span className="font-medium">{emailScanProgress}%</span>
                     </div>
-                    {scanResult.detectionDetails.indicators.length > 0 && (
-                      <div className="mt-3">
-                        <p className="text-sm font-medium mb-2">Detection Indicators:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {scanResult.detectionDetails.indicators.map((indicator, i) => (
-                            <Badge key={i} variant="outline" className="text-xs">
-                              {indicator}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
+                    <Progress value={emailScanProgress} className="h-2" />
+                  </div>
+                )}
+
+                <Button
+                  onClick={startEmailScan}
+                  disabled={emailScanMutation.isPending || !emailContent.trim()}
+                  className="w-full gap-2"
+                  data-testid="button-scan-email"
+                >
+                  {emailScanMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="h-4 w-4" />
+                      Scan for Phishing & Scams
+                    </>
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Email scan result */}
+                <div
+                  className={`p-4 rounded-lg border ${
+                    emailScanResult.isPhishing || emailScanResult.isScam
+                      ? "bg-destructive/10 border-destructive/30"
+                      : "bg-primary/10 border-primary/30"
+                  }`}
+                  data-testid="div-email-scan-result"
+                >
+                  <div className="flex items-start gap-3">
+                    {emailScanResult.isPhishing || emailScanResult.isScam ? (
+                      <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                    ) : (
+                      <CheckCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                     )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium" data-testid="text-email-verdict">
+                          {emailScanResult.isPhishing || emailScanResult.isScam
+                            ? "Potential Threat Detected"
+                            : "Email Appears Safe"}
+                        </p>
+                        <Badge variant={getRiskBadgeVariant(emailScanResult.riskLevel)} className="text-xs">
+                          {emailScanResult.riskLevel.toUpperCase()} RISK
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {emailScanResult.isPhishing && (
+                          <Badge variant="destructive" className="text-xs gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Phishing Detected
+                          </Badge>
+                        )}
+                        {emailScanResult.isScam && (
+                          <Badge variant="destructive" className="text-xs gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Scam Detected
+                          </Badge>
+                        )}
+                      </div>
+
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Confidence: {emailScanResult.detectionDetails.confidence}
+                      </p>
+
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">AI-Generated Probability</span>
+                          <span className="font-medium" data-testid="text-email-ai-probability">
+                            {(emailScanResult.aiProbability * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        <Progress
+                          value={emailScanResult.aiProbability * 100}
+                          className={`h-2 ${emailScanResult.aiProbability > 0.5 ? "[&>div]:bg-destructive" : ""}`}
+                        />
+                      </div>
+
+                      {emailScanResult.detectionDetails.suspiciousElements.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium mb-2">Suspicious Elements:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {emailScanResult.detectionDetails.suspiciousElements.map((element, i) => (
+                              <Badge key={i} variant="outline" className="text-xs">
+                                {element}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {emailScanResult.detectionDetails.indicators.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium mb-2">Threat Indicators:</p>
+                          <ul className="text-sm text-muted-foreground space-y-1">
+                            {emailScanResult.detectionDetails.indicators.map((indicator, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-destructive">•</span>
+                                {indicator}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                <Button
+                  variant="outline"
+                  onClick={clearEmail}
+                  className="w-full"
+                  data-testid="button-scan-another-email"
+                >
+                  Scan Another Email
+                </Button>
               </div>
             )}
-
-            {/* Action buttons */}
-            {!scanResult && (
-              <Button
-                onClick={startScan}
-                disabled={scanMutation.isPending}
-                className="w-full gap-2"
-                data-testid="button-start-scan"
-              >
-                {scanMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Scanning...
-                  </>
-                ) : (
-                  <>
-                    <ScanLine className="h-4 w-4" />
-                    Scan for AI Content
-                  </>
-                )}
-              </Button>
-            )}
-
-            {scanResult && (
-              <Button
-                variant="outline"
-                onClick={clearFile}
-                className="w-full"
-                data-testid="button-scan-another"
-              >
-                Scan Another File
-              </Button>
-            )}
-          </div>
-        )}
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );

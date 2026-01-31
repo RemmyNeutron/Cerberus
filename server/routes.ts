@@ -643,5 +643,130 @@ export async function registerRoutes(
     }
   });
 
+  // Scan email for phishing and AI-generated scams
+  app.post("/api/scan-email", isAuthenticated, requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.authenticatedUserId;
+      const { emailContent } = req.body;
+
+      if (!emailContent || typeof emailContent !== "string") {
+        return res.status(400).json({ message: "Email content is required" });
+      }
+
+      if (emailContent.length > 50000) {
+        return res.status(400).json({ message: "Email content too long. Maximum 50,000 characters." });
+      }
+
+      // Simulate AI phishing/scam detection analysis
+      // In production, this would call an actual AI detection service
+      const emailLower = emailContent.toLowerCase();
+      
+      // Check for common phishing indicators
+      const phishingIndicators: string[] = [];
+      const suspiciousElements: string[] = [];
+      
+      // URL patterns
+      if (emailLower.includes("click here") || emailLower.includes("click this link")) {
+        suspiciousElements.push("Urgent click request");
+      }
+      if (emailLower.match(/verify your (account|identity|payment)/)) {
+        suspiciousElements.push("Account verification request");
+        phishingIndicators.push("Requests personal account verification");
+      }
+      if (emailLower.includes("password") && emailLower.includes("expire")) {
+        suspiciousElements.push("Password urgency");
+        phishingIndicators.push("Creates urgency around password action");
+      }
+      if (emailLower.match(/suspend|suspended|deactivat/)) {
+        suspiciousElements.push("Suspension threat");
+        phishingIndicators.push("Threatens account suspension");
+      }
+      if (emailLower.includes("urgent") || emailLower.includes("immediately") || emailLower.includes("act now")) {
+        suspiciousElements.push("Urgency language");
+      }
+      if (emailLower.match(/won|winner|prize|lottery|congratulations/)) {
+        suspiciousElements.push("Prize/lottery claim");
+        phishingIndicators.push("Unsolicited prize or lottery notification");
+      }
+      if (emailLower.match(/bank|paypal|venmo|zelle|wire transfer/)) {
+        suspiciousElements.push("Financial service mention");
+      }
+      if (emailLower.includes("social security") || emailLower.includes("ssn")) {
+        suspiciousElements.push("SSN request");
+        phishingIndicators.push("Requests sensitive personal information");
+      }
+      if (emailLower.match(/dear (customer|user|member|valued)/)) {
+        suspiciousElements.push("Generic greeting");
+        phishingIndicators.push("Uses generic greeting instead of name");
+      }
+      if (emailLower.includes("nigerian") || emailLower.includes("inheritance") || emailLower.includes("million dollars")) {
+        suspiciousElements.push("Advance-fee scam pattern");
+        phishingIndicators.push("Classic advance-fee scam indicators");
+      }
+      
+      // Calculate probabilities based on indicators found
+      const baseScore = Math.random() * 0.3; // Random base
+      const indicatorScore = (suspiciousElements.length * 0.08) + (phishingIndicators.length * 0.12);
+      const aiProbability = Math.min(0.95, baseScore + indicatorScore);
+      
+      const isPhishing = phishingIndicators.length >= 2 || (suspiciousElements.length >= 3 && aiProbability > 0.5);
+      const isScam = phishingIndicators.some(i => 
+        i.includes("lottery") || i.includes("advance-fee") || i.includes("prize")
+      );
+      
+      // Determine risk level
+      let riskLevel: "low" | "medium" | "high" | "critical";
+      if (isPhishing && isScam) {
+        riskLevel = "critical";
+      } else if (isPhishing || phishingIndicators.length >= 2) {
+        riskLevel = "high";
+      } else if (suspiciousElements.length >= 2) {
+        riskLevel = "medium";
+      } else {
+        riskLevel = "low";
+      }
+
+      // Log the scan event
+      logSecurityEvent({
+        type: "email_scan",
+        userId,
+        ip: getClientIp(req),
+        path: req.path,
+        method: req.method,
+        details: {
+          contentLength: emailContent.length,
+          isPhishing,
+          isScam,
+          riskLevel,
+          aiProbability: aiProbability.toFixed(3),
+        },
+      });
+
+      const result = {
+        isPhishing,
+        isScam,
+        aiProbability,
+        riskLevel,
+        detectionDetails: {
+          confidence: aiProbability > 0.85 
+            ? "Very High" 
+            : aiProbability > 0.65 
+              ? "High" 
+              : aiProbability > 0.35 
+                ? "Medium" 
+                : "Low",
+          indicators: phishingIndicators,
+          suspiciousElements,
+        },
+        scannedAt: new Date().toISOString(),
+      };
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error scanning email:", error);
+      res.status(500).json({ message: "Failed to scan email" });
+    }
+  });
+
   return httpServer;
 }
