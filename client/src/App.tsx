@@ -34,7 +34,7 @@ function HomePage() {
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={HomePage} />
+      <Route path="/" component={LandingPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/downloads" component={DownloadsPage} />
       <Route component={NotFound} />
