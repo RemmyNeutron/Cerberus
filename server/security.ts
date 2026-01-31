@@ -311,7 +311,11 @@ import crypto from "crypto";
 
 // Generate CSRF token based on session
 export function generateCsrfToken(sessionId: string): string {
-  const secret = process.env.SESSION_SECRET || "default-secret";
+  const secret = process.env.SESSION_SECRET;
+
+  if (!secret) {
+    throw new Error("SESSION_SECRET is required");
+  }
   const timestamp = Date.now().toString();
   const data = `${sessionId}:${timestamp}`;
   const signature = crypto.createHmac("sha256", secret).update(data).digest("hex");
@@ -325,7 +329,10 @@ export function validateCsrfToken(token: string, sessionId: string): boolean {
   if (parts.length !== 2) return false;
   
   const [timestamp, signature] = parts;
-  const secret = process.env.SESSION_SECRET || "default-secret";
+  const secret = process.env.SESSION_SECRET;
+
+  if (!secret) {
+    throw new Error("SESSION_SECRET is required");
   
   // Check token age (max 1 hour)
   const tokenAge = Date.now() - parseInt(timestamp, 10);
