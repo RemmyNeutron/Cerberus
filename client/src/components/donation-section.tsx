@@ -82,19 +82,19 @@ const cryptoOptions: CryptoAddressProps[] = [
   {
     name: "Bitcoin",
     symbol: "BTC",
-    address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+    address: "Coming soon",
     color: "#F7931A",
   },
   {
     name: "Ethereum",
     symbol: "ETH",
-    address: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+    address: "Coming soon",
     color: "#627EEA",
   },
   {
     name: "Monero",
     symbol: "XMR",
-    address: "48edfHu7V9Z84YzzMa6fUueoELZ9ZRXq9VetWzYGzKt52XU5xvqgzYnDK9URnRoJMk1j8nLwEVsaSWJ4fhdUyZijBGUicoD",
+    address: "Coming soon",
     color: "#FF6600",
   },
 ];
