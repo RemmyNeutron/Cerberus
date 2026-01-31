@@ -1,6 +1,33 @@
-node_modules
-dist
+.local/
+*.tar.gz
+# dependencies
+node_modules/
+
+# env / secrets
+.env
+.env.*
+*.env
+
+# logs
+*.log
+
+# mac junk
 .DS_Store
-server/public
-vite.config.ts.*
+
+# builds
+dist/
+build/
+
+# keys
+*.pem
+*.key
+*.p12
+*.crt
+*.pfx
+
+# editors
+.vscode/
+.idea/
+
+# archives
 *.tar.gz
